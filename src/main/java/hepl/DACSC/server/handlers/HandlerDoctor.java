@@ -46,6 +46,9 @@ public class HandlerDoctor implements HttpHandler {
             if(specId != null && !specId.isEmpty()) {
                 dsvm.setSpecialtyId(Integer.parseInt(specId));
             }
+            else {
+                dsvm.setSpecialtyId(-1);
+            }
 
             doctors = doctorDAO.getDoctors(dsvm);
             String jsonResponse = convertDoctorsToJSON(doctors);

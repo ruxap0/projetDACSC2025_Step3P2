@@ -6,7 +6,9 @@ import hepl.DACSC.model.entity.Patient;
 import hepl.DACSC.model.viewmodel.ConsultationSearchVM;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 
 public class ConsultationDAO {
@@ -63,58 +65,145 @@ public class ConsultationDAO {
         return ++idCons;
     }
 
-    public ArrayList<Consultation> getConsultations(ConsultationSearchVM csvm) throws SQLException {
-        consultations = new ArrayList<>();
-        StringBuilder sql = new StringBuilder(
-                "SELECT c.*, " +
-                        "p.last_name as patient_lastname, p.first_name as patient_firstname, " +
-                        "d.last_name as doctor_lastname, d.first_name as doctor_firstname, d.specialty_id " +
-                        "FROM consultations c " +
-                        "INNER JOIN patients p ON c.patient_id = p.id " +
-                        "INNER JOIN doctors d ON c.doctor_id = d.id "
-        );
-        sql.append(" WHERE c.doctor_id = ").append(csvm.getIdDoctor());
+    public ArrayList<Consultation> getConsultationsByPatient(int patientId) throws SQLException {
+        String sql = "SELECT " +
+                "c.id as consultation_id, c.date, c.hour, c.reason, " +
+                "c.doctor_id, c.patient_id, " +
+                "d.first_name as doctor_first_name, d.last_name as doctor_last_name, d.specialty_id, " +
+                "p.first_name as patient_first_name, p.last_name as patient_last_name, " +
+                "s.id as specialty_id, s.name as specialty_name " +
+                "FROM consultations c " +
+                "JOIN doctors d ON c.doctor_id = d.id " +
+                "JOIN patients p ON c.patient_id = p.id " +
+                "JOIN specialties s ON d.specialty_id = s.id " +
+                "WHERE c.patient_id = ? ";
 
-        System.out.println("Exécution: " + sql);
+        ArrayList<Consultation> consultations = new ArrayList<>();
 
-        PreparedStatement ps = connection.getInstance().prepareStatement(sql.toString());
+        try (PreparedStatement ps = connection.getInstance().prepareStatement(sql)) {
+            ps.setInt(1, patientId);
 
-        try(ResultSet rs = ps.executeQuery()) {
-            while(rs.next()) {
-                System.out.println("LIGNE TROUVEE");
-                Patient patient = new Patient(
-                        rs.getInt("patient_id"),
-                        rs.getString("patient_lastname"),
-                        rs.getString("patient_firstname")
-                );
-
-                Doctor doctor = new Doctor(
-                        rs.getInt("doctor_id"),
-                        rs.getString("doctor_lastname"),
-                        rs.getString("doctor_firstname"),
-                        rs.getInt("specialty_id")
-                );
-                doctor.setSpecialtyId(rs.getInt("specialty_id"));
-
-                String hourStr = rs.getString("hour");
-                LocalTime hour = LocalTime.parse(hourStr);
-
-                Consultation cons = new Consultation(
-                        rs.getInt("id"),
-                        rs.getDate("date").toLocalDate(),
-                        hour,
-                        patient,
-                        rs.getString("reason"),
-                        doctor
-                );
-                System.out.println(cons.toString());
-                consultations.add(cons);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    consultations.add(mapResultSetToConsultationWithDetails(rs));
+                }
             }
         }
-        catch (SQLException e) {
-            System.err.println("Erreur SQL getConsultations: " + e);
+
+        return consultations;
+    }
+
+    /**
+     * Récupère les consultations disponibles (non réservées) avec détails du docteur
+     */
+    public ArrayList<Consultation> getAvailableConsultations(Integer specialtyId, Integer doctorId) throws SQLException {
+        StringBuilder sql = new StringBuilder(
+                "SELECT " +
+                        "c.id as consultation_id, c.date, c.hour, c.reason, " +
+                        "c.doctor_id, c.patient_id, " +
+                        "d.first_name as doctor_first_name, d.last_name as doctor_last_name, d.specialty_id, " +
+                        "s.id as specialty_id, s.name as specialty_name " +
+                        "FROM consultations c " +
+                        "JOIN doctors d ON c.doctor_id = d.id " +
+                        "JOIN specialties s ON d.specialty_id = s.id " +
+                        "WHERE c.patient_id IS NULL"
+        );
+
+        if (specialtyId != null) {
+            sql.append(" AND d.specialty_id = ?");
+        }
+        if (doctorId != null) {
+            sql.append(" AND c.doctor_id = ?");
+        }
+        sql.append(" ORDER BY c.date, c.hour");
+
+        ArrayList<Consultation> consultations = new ArrayList<>();
+
+        try (PreparedStatement ps = connection.getInstance().prepareStatement(sql.toString())) {
+            int paramIndex = 1;
+            if (specialtyId != null) {
+                ps.setInt(paramIndex++, specialtyId);
+            }
+            if (doctorId != null) {
+                ps.setInt(paramIndex++, doctorId);
+            }
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    consultations.add(mapResultSetToConsultationWithDetails(rs));
+                }
+            }
         }
 
-         return consultations;
+        return consultations;
+    }
+
+    /**
+     * Réserve une consultation
+     */
+    public boolean reserveConsultation(int consultationId, int patientId, String reason) throws SQLException {
+        String sql = "UPDATE consultations SET patient_id = ?, reason = ? WHERE id = ? AND patient_id IS NULL";
+
+        try (PreparedStatement ps = connection.getInstance().prepareStatement(sql)) {
+            ps.setInt(1, patientId);
+            ps.setString(2, reason);
+            ps.setInt(3, consultationId);
+
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+        }
+    }
+
+    /**
+     * Annule une consultation (libère le créneau)
+     */
+    public boolean cancelConsultation(int consultationId) throws SQLException {
+        String sql = "UPDATE consultations SET patient_id = NULL, reason = NULL WHERE id = ?";
+
+        try (PreparedStatement ps = connection.getInstance().prepareStatement(sql)) {
+            ps.setInt(1, consultationId);
+
+            int rowsAffected = ps.executeUpdate();
+            return rowsAffected > 0;
+        }
+    }
+
+    /**
+     * Map ResultSet vers Consultation avec tous les détails (Doctor, Patient, Specialty)
+     */
+
+    private Consultation mapResultSetToConsultationWithDetails(ResultSet rs) throws SQLException {
+        Consultation consultation = new Consultation();
+
+        // Données de la consultation
+        consultation.setId(rs.getInt("consultation_id"));
+        consultation.setDate(LocalDate.parse(rs.getString("date")));
+
+        DateTimeFormatter timeFormatter = DateTimeFormatter.ofPattern("[H:mm:ss][HH:mm:ss][H:mm][HH:mm]");
+        consultation.setTime(LocalTime.parse(rs.getString("hour"), timeFormatter));
+
+        consultation.setReason(rs.getString("reason"));
+        consultation.setDoctor( new Doctor(
+
+                rs.getInt("doctor_id"),
+                rs.getString("doctor_last_name"),
+                rs.getString("doctor_first_name"),
+                rs.getInt("specialty_id")
+        ));
+
+        // Patient ID (peut être null)
+        int patientId = rs.getInt("patient_id");
+        if(rs.wasNull()) {
+            consultation.setPatient(null);
+        }
+        else{
+            consultation.setPatient(new Patient(
+                    patientId,
+                    rs.getString("patient_last_name"),
+                    rs.getString("patient_first_name")
+            ));
+        }
+
+        return consultation;
     }
 }

@@ -17,7 +17,7 @@ public class PatientDAO {
         this.patients = new ArrayList<>();
     }
 
-    public int addPatient(PatientSearchVM patient) throws SQLException {
+    public Patient addPatient(PatientSearchVM patient) throws SQLException {
         int IdPatient = 0;
         ResultSet rs = null;
         try
@@ -49,37 +49,35 @@ public class PatientDAO {
                 rs.close();
             }
         }
-        return IdPatient;
+        return new Patient(
+                IdPatient,
+                patient.getLastName(),
+                patient.getFirstName()
+        );
     }
 
     public Patient getPatient(PatientSearchVM psvm) throws SQLException {
+        String sql = "SELECT * FROM patients WHERE id = ? AND last_name = ? AND first_name = ?";
 
-        StringBuilder sql = new StringBuilder("SELECT * FROM Patients WHERE 1=1");
+        try (PreparedStatement ps = conn.getInstance().prepareStatement(sql)) {
+            // Bind des paramètres de manière sécurisée
+            ps.setInt(1, psvm.getId());
+            ps.setString(2, psvm.getLastName());
+            ps.setString(3, psvm.getFirstName());
 
-        sql.append(" AND id =  " + psvm.getId());
-        sql.append(" AND last_name = " + psvm.getLastName());
-        sql.append(" AND first_name = " + psvm.getFirstName());
-
-        try
-        {
-            PreparedStatement ps = conn.getInstance().prepareStatement(sql.toString());
-            ResultSet rs = ps.executeQuery();
-
-            if(rs.next())
-            {
-                Patient patient = new Patient(
-                        rs.getInt("id"),
-                        rs.getString("last_name"),
-                        rs.getString("first_name")
-                );
-
-                return patient;
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    Patient patient = new Patient(
+                            rs.getInt("id"),
+                            rs.getString("last_name"),
+                            rs.getString("first_name")
+                    );
+                    return patient;
+                }
+                return null;
             }
-
-            return null;
-        }
-        catch (SQLException ex) {
-            throw new SQLException("Erreur lors de l'ajout du patient : " + ex.getMessage());
+        } catch (SQLException ex) {
+            throw new SQLException("Erreur lors de la lecture du patient : " + ex.getMessage());
         }
     }
 
@@ -116,7 +114,7 @@ public class PatientDAO {
      * @return Liste de tous les patients
      */
     public synchronized ArrayList<Patient> getPatients(PatientSearchVM psvm) throws SQLException {
-        StringBuilder sql = new StringBuilder("SELECT id, last_name, first_name FROM patient WHERE 1=1");
+        StringBuilder sql = new StringBuilder("SELECT id, last_name, first_name FROM patients WHERE 1=1");
 
         if(psvm.getFirstName() != null) {
             sql.append(" AND first_name LIKE '%").append(psvm.getFirstName()).append("%'");

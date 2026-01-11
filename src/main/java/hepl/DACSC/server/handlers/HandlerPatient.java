@@ -61,42 +61,65 @@ public class HandlerPatient implements HttpHandler {
     }
 
     private PatientSearchVM parsePatientRequest(String json) {
+        System.out.println("\n  → Début du parsing...");
         PatientSearchVM request = new PatientSearchVM();
 
         // Retirer les accolades et espaces
-        json = json.trim().replaceAll("[{}]", "");
+        String cleanJson = json.trim().replaceAll("[{}]", "");
+        System.out.println("  JSON nettoyé: [" + cleanJson + "]");
 
         // Séparer les paires clé-valeur
-        String[] pairs = json.split(",");
+        String[] pairs = cleanJson.split(",");
+        System.out.println("  Nombre de paires trouvées: " + pairs.length);
 
-        for (String pair : pairs) {
+        for (int i = 0; i < pairs.length; i++) {
+            String pair = pairs[i];
+            System.out.println("  Paire " + (i+1) + ": [" + pair + "]");
+
             String[] keyValue = pair.split(":", 2);
-            if (keyValue.length != 2) continue;
+            if (keyValue.length != 2) {
+                System.err.println("    ⚠ Paire invalide (pas de ':')");
+                continue;
+            }
 
             String key = keyValue[0].trim().replaceAll("\"", "");
             String value = keyValue[1].trim().replaceAll("\"", "");
 
+            System.out.println("    Clé: [" + key + "]");
+            System.out.println("    Valeur: [" + value + "]");
+
             switch (key) {
                 case "firstName":
                     request.setFirstName(value);
+                    System.out.println("    ✓ firstName défini: " + value);
                     break;
                 case "lastName":
                     request.setLastName(value);
+                    System.out.println("    ✓ lastName défini: " + value);
                     break;
                 case "patientId":
+                case "id":  // ✅ Accepter aussi "id"
                     try {
-                        request.setId(Integer.parseInt(value));
+                        int id = Integer.parseInt(value);
+                        request.setId(id);
+                        System.out.println("    ✓ patientId défini: " + id);
                     } catch (NumberFormatException e) {
-                        System.err.println("Patient ID is not an integer");
+                        System.err.println("    ❌ Erreur: patientId n'est pas un nombre: " + value);
                     }
                     break;
                 case "newPatient":
                 case "isNew":
-                    request.setNew(Boolean.parseBoolean(value));
+                    boolean isNew = Boolean.parseBoolean(value);
+                    request.setNew(isNew);
+                    System.out.println("    ✓ newPatient défini: " + isNew);
+                    break;
+                default:
+                    System.out.println("    ⚠ Clé inconnue ignorée: " + key);
                     break;
             }
         }
 
+        System.out.println("  → Fin du parsing\n");
         return request;
     }
 

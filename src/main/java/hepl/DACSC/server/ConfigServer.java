@@ -19,12 +19,8 @@ public class ConfigServer {
         }
     }
 
-    public int getPort(){
-        return Integer.parseInt(properties.getProperty("PORT_SERVER"));
-    }
-
     public String getDBUser(){
-        return properties.getProperty("DB_USER");
+        return properties.getProperty("DB_USR");
     }
 
     public String getDBPasswd(){

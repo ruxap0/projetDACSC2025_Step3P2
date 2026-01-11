@@ -14,10 +14,11 @@ public class DoctorDAO {
 
     public DoctorDAO(DBConnexion connection) {
         this.connection = connection;
+        doctors = new ArrayList<>();
     }
 
     public synchronized ArrayList<Doctor> getDoctors(DoctorSearchVM dsvm) throws SQLException {
-        StringBuilder sql = new StringBuilder("SELECT id, last_name, first_name, specialty_id FROM doctor WHERE 1=1");
+        StringBuilder sql = new StringBuilder("SELECT id, last_name, first_name, specialty_id FROM doctors WHERE 1=1");
 
         if(dsvm.getDoctorName() != null) {
             sql.append(" AND last_name LIKE '%").append(dsvm.getDoctorName()).append("%'");
@@ -32,6 +33,7 @@ public class DoctorDAO {
                 var rs = ps.executeQuery()
         ) {
             doctors.clear();
+
             while (rs.next()) {
                 Doctor doctor = new Doctor(
                         rs.getInt("id"),
