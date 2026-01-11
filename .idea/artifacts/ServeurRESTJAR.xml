@@ -1,0 +1,12 @@
+<component name="ArtifactManager">
+  <artifact name="ServeurRESTJAR">
+    <output-path>$PROJECT_DIR$/out/artifacts/ServeurRESTJAR</output-path>
+    <root id="root">
+      <element id="archive" name="projetDACSC_Step3P22025.jar">
+        <element id="module-output" name="projetDACSC_Step3P22025" />
+        <element id="file-copy" path="$PROJECT_DIR$/src/main/resources/configserver.properties" />
+        <element id="library" level="project" name="mysql-connector-j-8.2.0" />
+      </element>
+    </root>
+  </artifact>
+</component>

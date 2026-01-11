@@ -1,0 +1,4 @@
+Manifest-Version: 1.0
+Main-Class: hepl.DACSC.server.MainServer
+Class-Path: mysql-connector-j-8.2.0.jar
+
